@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GOAT_bot — Athlete Info Chatbot</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--bubble:#111827}
+    *{box-sizing:border-box}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0; min-height:100vh; background:linear-gradient(180deg,#071025 0%, #071829 100%); color:#e6eef6; display:flex; align-items:center; justify-content:center; padding:24px}
+    .container{width:960px; max-width:100%; display:grid; grid-template-columns:360px 1fr; gap:20px}
+    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.04); padding:18px; border-radius:12px}
+    header{display:flex; align-items:center; gap:12px}
+    .logo{width:56px; height:56px; border-radius:10px; background:linear-gradient(90deg,var(--accent),#7c3aed); display:flex; align-items:center; justify-content:center; font-weight:700}
+    h1{font-size:18px;margin:0}
+    p.sub{color:var(--muted); margin:6px 0 0; font-size:13px}
+    .left{display:flex; flex-direction:column; gap:12px}
+    .examples{margin-top:6px}
+    .chip{display:inline-block;background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:999px; margin:6px 6px 0 0; cursor:pointer; font-size:13px}
+
+    .chat{display:flex; flex-direction:column; height:70vh}
+    .messages{flex:1; overflow:auto; padding:12px; display:flex; flex-direction:column; gap:12px}
+    .input-area{display:flex; gap:10px; margin-top:12px}
+    .input{flex:1; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.02); padding:10px; border-radius:10px}
+    .input input{flex:1; background:transparent; border:0; outline:none; color:inherit; font-size:15px}
+    button.send{background:var(--accent); border:0; color:#022; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600}
+
+    .msg{max-width:78%; padding:12px 14px; border-radius:12px; line-height:1.45}
+    .msg.user{background:linear-gradient(90deg,#0ea5a4, #7c3aed); color:#041b20; align-self:flex-end; border-bottom-right-radius:4px}
+    .msg.bot{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); align-self:flex-start; border-bottom-left-radius:4px}
+
+    .meta{font-size:12px; color:var(--muted); margin-top:6px}
+    .footer{font-size:13px; color:var(--muted); text-align:center}
+
+    /* responsive */
+    @media (max-width:880px){.container{grid-template-columns:1fr} .left{order:2}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <aside class="panel left">
+      <header>
+        <div class="logo">GOAT</div>
+        <div>
+          <h1>GOAT_bot</h1>
+          <p class="sub">Ask about athletes — bios, achievements, records.</p>
+        </div>
+      </header>
+
+      <div class="examples">
+        <strong>Quick examples</strong>
+        <div>
+          <span class="chip">Ronaldo is the GOAT of football.</span>
+          <span class="chip">Tell me about LeBron James.</span>
+          <span class="chip">Who is Usain Bolt?</span>
+          <span class="chip">Messi achievements</span>
+          <span class="chip">Who are top swimmers?</span>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <strong>Skills</strong>
+        <ul style="margin:8px 0 0 18px;color:var(--muted)">
+          <li>Athlete info retrieval</li>
+          <li>Biographies & achievements</li>
+          <li>Multi-sport support</li>
+          <li>Quick comparisons</li>
+        </ul>
+      </div>
+
+      <div style="margin-top:14px">
+        <strong>Tips</strong>
+        <p class="sub">Try typing a name (e.g., "Virat Kohli") or opinion ("Ronaldo is the GOAT"). The bot uses local intent matching to respond.</p>
+      </div>
+    </aside>
+
+    <main class="panel chat">
+      <div class="messages" id="messages" aria-live="polite"></div>
+
+      <div class="input-area">
+        <div class="input">
+          <input id="userInput" placeholder="Ask GOAT_bot about any athlete..." autocomplete="off" />
+          <button class="send" id="sendBtn">Send</button>
+        </div>
+        <button class="send" id="clearBtn" title="Clear chat">Clear</button>
+      </div>
+
+      <div class="meta">Built-in demo — client-side only. Modify responses in the script.</div>
+    </main>
+  </div>
+
+  <script>
+    // Simple local dataset (short bios). Extend as needed.
+    const ATHLETES = {
+      'cristiano ronaldo': {
+        short: 'Cristiano Ronaldo — Portuguese forward known for goal-scoring, athleticism, multiple Champions League titles and Ballon d\'Ors.'
+      },
+      'ronaldo': null, // will map to cristiano by fallback
+      'lionel messi': { short: 'Lionel Messi — Argentine forward, exceptional dribbler and playmaker, World Cup winner and multiple Ballon d\'Ors.' },
+      'messi': null,
+      'steph curry': { short: 'Stephen Curry — American guard famed as the greatest shooter in NBA history, revolutionized 3-point shooting.' },
+      'lebron james': { short: 'LeBron James — American forward recognized for versatility, longevity and being one of the NBA\'s all-time greats.' },
+      'virat kohli': { short: 'Virat Kohli — Indian cricketer known for prolific run-scoring, chasing ability and consistency across formats.' },
+      'usain bolt': { short: 'Usain Bolt — Jamaican sprinter, world record holder and widely regarded as the fastest man ever.' },
+      'roger federer': { short: 'Roger Federer — Swiss tennis legend celebrated for elegance, titles and all-time greatness.' },
+      'serena williams': { short: 'Serena Williams — Dominant American tennis player with numerous Grand Slam titles and an iconic career.' },
+      'neymar': { short: 'Neymar Jr. — Brazilian forward known for flair, dribbling and attacking creativity.' }
+    };
+
+    // simple intent matching patterns
+    const INTENTS = [
+      {name:'Get_Athlete_Info', patterns:[/\b(ronaldo|cristiano)\b/i, /\b(messi|lionel)\b/i, /\b(lebron)\b/i, /\b(curry|steph)\b/i, /\b(kohli|virat)\b/i, /\b(bolt|usain)\b/i, /\b(federer|roger)\b/i, /\b(serena)\b/i, /\b(neymar)\b/i]},
+      {name:'Get_Athlete_Achievements', patterns:[/achievement|record|trophy|title|award|ballon d'or|champions league/i]},
+      {name:'Get_Athlete_Biography', patterns:[/biograph|life story|born|birth|early life/i]},
+      {name:'Get_Athlete_Sport', patterns:[/which sport|plays|sport does|what sport/i]},
+      {name:'Compare_Athletes', patterns:[/compare|better|vs |versus/i]},
+      {name:'Get_Top_Athletes', patterns:[/top |best |greatest |who are the top|who are the best/i]},
+      {name:'Greet_User', patterns:[/hi\b|hello|hey\b|good morning|good evening/i]},
+      {name:'Exit', patterns:[/bye|exit|see you|goodbye/i]},
+      {name:'Gratitude', patterns:[/thank(s| you)|thanks|appreciate/i]},
+    ];
+
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    function appendMessage(text, cls='bot'){
+      const div = document.createElement('div');
+      div.className = 'msg ' + (cls==='user' ? 'user' : 'bot');
+      div.textContent = text;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function detectIntent(text){
+      for(const intent of INTENTS){
+        for(const p of intent.patterns){
+          if(p.test(text)) return intent.name;
+        }
+      }
+      return 'Fallback';
+    }
+
+    function findAthlete(text){
+      const lower = text.toLowerCase();
+      // direct lookup by keys
+      for(const key of Object.keys(ATHLETES)){
+        if(lower.includes(key)){
+          // if value null try canonical
+          if(ATHLETES[key]) return {name:key, data:ATHLETES[key]};
+        }
+      }
+      // try mapping simpler tokens
+      if(/\bronald(o)?\b/i.test(text)) return {name:'cristiano ronaldo', data:ATHLETES['cristiano ronaldo']};
+      if(/\bmessi\b/i.test(text)) return {name:'lionel messi', data:ATHLETES['lionel messi']};
+      if(/\bst(eph)?\b|curry/i.test(text)) return {name:'steph curry', data:ATHLETES['steph curry']};
+      return null;
+    }
+
+    function handleUserText(raw){
+      const text = raw.trim();
+      if(!text) return;
+      appendMessage(text, 'user');
+
+      const intent = detectIntent(text);
+
+      // simple responses per intent
+      if(intent === 'Get_Athlete_Info'){
+        const athlete = findAthlete(text);
+        if(athlete){
+          appendMessage(`${athlete.data.short}`);
+        } else {
+          appendMessage('I can help — tell me the athlete name or ask for achievements/biography.');
+        }
+        return;
+      }
+
+      if(intent === 'Get_Athlete_Achievements'){
+        appendMessage('I can list achievements for popular athletes. Try: "What trophies has Ronaldo won?"');
+        return;
+      }
+
+      if(intent === 'Get_Athlete_Biography'){
+        appendMessage('Provide an athlete name and I will share a short biography. Example: "Biography of Serena Williams"');
+        return;
+      }
+
+      if(intent === 'Get_Athlete_Sport'){
+        appendMessage('Ask: "Which sport does LeBron James play?" or type the athlete name.' );
+        return;
+      }
+
+      if(intent === 'Compare_Athletes'){
+        appendMessage('I can compare basic records and achievements — try: "Compare Ronaldo and Messi."');
+        return;
+      }
+
+      if(intent === 'Get_Top_Athletes'){
+        appendMessage('Which sport do you mean? e.g., "Top football players" or "Best swimmers"');
+        return;
+      }
+
+      if(intent === 'Greet_User'){
+        appendMessage('Hello! I\'m GOAT_bot. Ask me about any athlete — name, achievements, or comparisons.');
+        return;
+      }
+
+      if(intent === 'Exit'){
+        appendMessage('Goodbye — come back to learn more about your favourite athletes!');
+        return;
+      }
+
+      if(intent === 'Gratitude'){
+        appendMessage('You\'re welcome! Happy to help.');
+        return;
+      }
+
+      // fallback
+      appendMessage('Sorry, I didn\'t understand that. Try asking about a specific athlete or say "Help".');
+    }
+
+    sendBtn.addEventListener('click', ()=>{ handleUserText(inputEl.value); inputEl.value=''; inputEl.focus(); });
+    inputEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ handleUserText(inputEl.value); inputEl.value=''; }});
+    clearBtn.addEventListener('click', ()=>{ messagesEl.innerHTML=''; });
+
+    // example chips behaviour
+    document.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{ inputEl.value = chip.textContent; inputEl.focus(); });
+    });
+
+    // welcome message
+    appendMessage('Hi — I\'m GOAT_bot. Ask about an athlete (e.g., "Tell me about Ronaldo").');
+  </script>
+<script>
+  window.watsonAssistantChatOptions = {
+    integrationID: "79ac077a-1f52-480c-a795-8a512d360573",
+    region: "eu-de",
+    serviceInstanceID: "32dcda11-c035-4ac4-ad13-990dc405d8ad",
+    onLoad: async (instance) => { await instance.render(); }
+  };
+  setTimeout(function(){
+    const t=document.createElement('script');
+    t.src="https://web-chat.global.assistant.watson.appdomain.cloud/versions/" + (window.watsonAssistantChatOptions.clientVersion || 'latest') + "/WatsonAssistantChatEntry.js";
+    document.head.appendChild(t);
+  });
+</script>
+</body>
+</html>
